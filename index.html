@@ -13,7 +13,7 @@
         header { 
             height: 65px; background: #000; display: flex; align-items: center; 
             justify-content: space-between; padding: 0 15px; border-bottom: 1px solid rgba(255,255,255,0.1);
-            z-index: 1001;
+            z-index: 2000;
         }
         .brand { display: flex; align-items: center; gap: 10px; font-weight: 900; color: var(--accent); letter-spacing: 1px; }
         .logo-svg { width: 26px; height: 26px; filter: drop-shadow(0 0 8px var(--accent)); }
@@ -40,8 +40,8 @@
             .brand span { display: none; }
         }
 
-        #main { display: flex; flex: 1; position: relative; overflow: hidden; }
-        #theater { flex: 1; background: #000; position: relative; display: flex; flex-direction: column; }
+        #main { display: flex; flex: 1; position: relative; overflow: hidden; width: 100%; }
+        #theater { flex: 1; background: #000; position: relative; display: flex; flex-direction: column; width: 100%; }
         
         #now-playing-hud {
             background: linear-gradient(to bottom, rgba(0,0,0,0.95) 0%, transparent 100%);
@@ -55,16 +55,27 @@
 
         #sidebar { 
             width: 320px; background: var(--panel); border-left: 1px solid rgba(255,255,255,0.1);
-            display: flex; flex-direction: column; transition: transform 0.3s ease;
+            display: flex; flex-direction: column; transition: transform 0.4s ease, opacity 0.3s ease;
         }
 
-        /* MOBILE SIDEBAR HIDDEN BY DEFAULT */
         @media (max-width: 1024px) { 
             #sidebar { 
-                position: absolute; right: 0; top: 0; bottom: 0; 
-                transform: translateX(100%); z-index: 1500; width: 85%; 
+                position: fixed; 
+                right: 0; top: 65px; bottom: 0; 
+                width: 0;
+                opacity: 0;
+                visibility: hidden;
+                transform: translateX(100%);
+                z-index: 3000; 
+                border-left: none;
             } 
-            body.menu-open #sidebar { transform: translateX(0); }
+            body.menu-open #sidebar { 
+                width: 85%;
+                opacity: 1;
+                visibility: visible;
+                transform: translateX(0);
+                border-left: 1px solid var(--accent);
+            }
         }
         
         #channel-list { flex: 1; overflow-y: auto; padding: 15px; scroll-behavior: smooth; }
@@ -77,7 +88,7 @@
         .ch-logo { width: 40px; height: 30px; object-fit: contain; margin-right: 12px; border-radius: 3px; }
         .ch-name { font-weight: 600; font-size: 0.85rem; }
 
-        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 3000; display: none; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(10px); }
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 4000; display: none; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(10px); }
         .modal-content { background: #0a0a0a; width: 100%; max-width: 350px; padding: 30px; border-radius: 25px; border: 1px solid var(--accent); text-align: center; position: relative; }
         #qr-box { background: white; padding: 10px; border-radius: 10px; display: inline-block; margin: 15px 0; }
     </style>
@@ -659,9 +670,13 @@ https://fl1.moveonjoy.com/Z_LIVING/index.m3u8
 
         renderList();
         
+        // FIX: Re-focus the newly rendered card so navigation continues from here
         setTimeout(() => {
             const activeCard = document.querySelector(`[data-idx="${i}"]`);
-            if (activeCard) activeCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (activeCard) {
+                activeCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                activeCard.focus();
+            }
         }, 100);
     }
 
@@ -687,7 +702,6 @@ https://fl1.moveonjoy.com/Z_LIVING/index.m3u8
         }
     });
 
-    // RESTORED ARROW KEY NAVIGATION
     window.addEventListener('keydown', (e) => {
         const active = document.activeElement;
         const focusable = Array.from(document.querySelectorAll('[tabindex="0"]'));
@@ -697,17 +711,11 @@ https://fl1.moveonjoy.com/Z_LIVING/index.m3u8
 
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
             if (e.key === 'ArrowDown') {
-                if (active.parentElement?.id === 'top-nav') {
-                    focusable[3]?.focus(); // Go to first channel card
-                } else if (idx < focusable.length - 1) {
-                    focusable[idx + 1].focus();
-                }
+                if (active.parentElement?.id === 'top-nav') { focusable[3]?.focus(); } 
+                else if (idx < focusable.length - 1) { focusable[idx + 1].focus(); }
             } else if (e.key === 'ArrowUp') {
-                if (idx <= 3) {
-                    document.getElementById('btn-shuffle').focus();
-                } else if (idx > 3) {
-                    focusable[idx - 1].focus();
-                }
+                if (idx <= 3) { document.getElementById('btn-shuffle').focus(); } 
+                else if (idx > 3) { focusable[idx - 1].focus(); }
             } else if (e.key === 'ArrowRight' && active.parentElement?.id === 'top-nav') {
                 focusable[idx + 1]?.focus();
             } else if (e.key === 'ArrowLeft' && active.parentElement?.id === 'top-nav') {
@@ -721,13 +729,18 @@ https://fl1.moveonjoy.com/Z_LIVING/index.m3u8
 
     function shuffle() { loadChannel(Math.floor(Math.random() * db.length)); }
     function toggleMenu() { document.body.classList.toggle('menu-open'); }
+
     function openSync() {
         const qrBox = document.getElementById('qr-box');
         qrBox.innerHTML = "";
         new QRCode(qrBox, { text: "https://humblekidd.github.io/HumbleTVAPP/", width: 160, height: 160 });
         document.getElementById('sync-modal').style.display = 'flex';
     }
-    function closeModals() { document.getElementById('sync-modal').style.display = 'none'; }
+
+    function closeModals() { 
+        document.getElementById('sync-modal').style.display = 'none'; 
+        document.body.classList.remove('menu-open');
+    }
     
     window.onload = () => {
         const savedIdx = localStorage.getItem('lastChannelIndex');

@@ -18,20 +18,19 @@
         .brand { display: flex; align-items: center; gap: 10px; font-weight: 900; color: var(--accent); letter-spacing: 1px; }
         .logo-svg { width: 26px; height: 26px; filter: drop-shadow(0 0 8px var(--accent)); }
         
-        .nav-btns { display: flex; gap: 6px; align-items: center; }
+        .nav-btns { display: flex; gap: 8px; align-items: center; }
         .btn-main { 
-            border: none; padding: 10px 12px; border-radius: 8px; font-weight: 800; 
-            cursor: pointer; font-size: 0.7rem; transition: 0.3s; display: flex; align-items: center; gap: 6px;
-            background: #1a1a1a; color: white; border: 1px solid #333; white-space: nowrap;
+            border: none; padding: 10px 15px; border-radius: 8px; font-weight: 800; 
+            cursor: pointer; font-size: 0.75rem; transition: 0.3s; display: flex; align-items: center; gap: 8px;
+            background: #1a1a1a; color: white; border: 1px solid #333;
         }
         .btn-main:hover { background: rgba(255, 255, 255, 0.1); transform: translateY(-2px); box-shadow: 0 5px 15px var(--accent-glow); }
         .btn-accent { background: linear-gradient(135deg, #00f2ff 0%, #0066ff 100%); border: none; box-shadow: 0 4px 15px var(--accent-glow); }
 
-        @media (max-width: 600px) {
-            .brand span { display: none; }
-            .btn-main { padding: 10px; font-size: 0.8rem; }
+        @media (max-width: 650px) {
             .btn-text { display: none; }
-            header { padding: 0 10px; }
+            .btn-main { width: 44px; height: 44px; padding: 0; justify-content: center; border-radius: 50%; font-size: 1.2rem; }
+            .brand span { display: none; }
         }
 
         :focus { outline: 3px solid var(--accent) !important; outline-offset: 2px; transform: scale(1.03); z-index: 10; }
@@ -46,7 +45,6 @@
         #hud-logo { height: 24px; width: auto; filter: drop-shadow(0 0 5px var(--accent)); }
         #hud-title { font-size: 0.95rem; font-weight: 900; text-transform: uppercase; color: var(--accent); letter-spacing: 1px; }
 
-        /* Video Stage Glow */
         #player-container { 
             position: relative; flex: 1; background: #000; display: flex; align-items: center; justify-content: center; outline: none; 
             transition: 0.3s;
@@ -68,7 +66,7 @@
             display: flex; align-items: center; padding: 12px; margin-bottom: 8px; 
             border-radius: 10px; background: rgba(255,255,255,0.02); cursor: pointer; transition: 0.2s;
         }
-        .ch-card.active { background: rgba(0,242,255,0.15); border-left: 4px solid var(--accent); }
+        .ch-card.active { background: rgba(0,242,255,0.1); border-left: 4px solid var(--accent); }
         .ch-logo { width: 40px; height: 30px; object-fit: contain; margin-right: 12px; border-radius: 3px; }
         .ch-name { font-weight: 600; font-size: 0.85rem; }
 
@@ -102,13 +100,13 @@
             <span id="hud-title">SELECT A CHANNEL</span>
         </div>
         <div id="player-container" tabindex="0">
-            <video id="player" autoplay playsinline muted></video>
+            <video id="player" autoplay playsinline></video>
         </div>
     </div>
 
     <div id="sidebar">
         <div class="search-wrap">
-            <input tabindex="0" type="text" placeholder="Search..." id="search" oninput="filterChannels()">
+            <input tabindex="0" type="text" placeholder="Search channels..." id="search" oninput="filterChannels()">
         </div>
         <div id="channel-list"></div>
     </div>
@@ -632,7 +630,7 @@ https://fl1.moveonjoy.com/Z_LIVING/index.m3u8
     const player = document.getElementById('player');
     const container = document.getElementById('player-container');
     let currentIdx = -1;
-    let lastEnter = 0;
+    let clickTimer = null;
     let idleTimer;
 
     function renderList() {
@@ -645,11 +643,11 @@ https://fl1.moveonjoy.com/Z_LIVING/index.m3u8
         `).join('');
     }
 
-    function loadChannel(i) {
+    function loadChannel(i, isShuffle = false) {
         currentIdx = i;
         const ch = db[i];
         localStorage.setItem('lastChannelIndex', i);
-        document.getElementById('hud-logo').src = ch.logo;
+        document.getElementById('hud-logo').src = ch.logo || '';
         document.getElementById('hud-title').innerText = ch.name;
         
         if (Hls.isSupported()) {
@@ -657,23 +655,24 @@ https://fl1.moveonjoy.com/Z_LIVING/index.m3u8
             hls.loadSource(ch.url);
             hls.attachMedia(player);
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                player.muted = false;
-                player.play().catch(() => {});
+                player.play().catch(e => console.log("Autoplay blocked, waiting for interaction."));
             });
         } else { player.src = ch.url; player.play(); }
 
         renderList();
         
-        setTimeout(() => {
-            const activeCard = document.querySelector(`[data-idx="${i}"]`);
-            if (activeCard) {
-                activeCard.focus();
-                activeCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-        }, 100);
+        // Only focus and scroll if it's NOT a shuffle call on mobile
+        if (!isShuffle || window.innerWidth > 1024) {
+            setTimeout(() => {
+                const activeCard = document.querySelector(`[data-idx="${i}"]`);
+                if (activeCard) {
+                    activeCard.focus();
+                    activeCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }, 100);
+        }
     }
 
-    // Video Controls & Fullscreen Logic
     function toggleFS() {
         if (!document.fullscreenElement) {
             if (player.requestFullscreen) player.requestFullscreen();
@@ -681,6 +680,11 @@ https://fl1.moveonjoy.com/Z_LIVING/index.m3u8
         } else {
             document.exitFullscreen();
         }
+    }
+
+    function togglePlayback() {
+        if (player.paused) player.play();
+        else player.pause();
     }
 
     function handleIdle() {
@@ -696,9 +700,20 @@ https://fl1.moveonjoy.com/Z_LIVING/index.m3u8
     }
 
     container.addEventListener('mousemove', handleIdle);
-    container.addEventListener('dblclick', toggleFS);
+    
+    container.addEventListener('click', (e) => {
+        if (clickTimer === null) {
+            clickTimer = setTimeout(() => {
+                togglePlayback();
+                clickTimer = null;
+            }, 300);
+        } else {
+            clearTimeout(clickTimer);
+            clickTimer = null;
+            toggleFS();
+        }
+    });
 
-    // Navigation & Shortcuts
     window.addEventListener('keydown', (e) => {
         const active = document.activeElement;
         const isSearch = active.id === 'search';
@@ -707,44 +722,53 @@ https://fl1.moveonjoy.com/Z_LIVING/index.m3u8
             if (document.fullscreenElement) { e.preventDefault(); document.exitFullscreen(); }
         }
 
-        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(e.key)) {
             const focusable = Array.from(document.querySelectorAll('[tabindex="0"]'));
             const idx = focusable.indexOf(active);
 
-            if (e.key === 'Enter') {
-                const now = Date.now();
-                if (active.id === 'player-container' && now - lastEnter < 300) toggleFS();
-                else active.click();
-                lastEnter = now;
+            if ((e.key === 'Enter' || e.key === ' ') && (active.id === 'player-container' || active.tagName === 'BODY')) {
+                togglePlayback();
+                e.preventDefault();
+                return;
+            }
+
+            if (e.key === 'Enter' && !isSearch) {
+                active.click();
+                e.preventDefault();
             } else if (e.key === 'ArrowDown') {
-                if (active.parentElement.id === 'top-nav') document.querySelector('.ch-card')?.focus();
+                if (active.parentElement?.id === 'top-nav') document.querySelector('.ch-card')?.focus();
                 else focusable[idx + 1]?.focus();
             } else if (e.key === 'ArrowUp') {
                 if (isSearch) document.getElementById('btn-shuffle').focus();
                 else if (idx > 0) focusable[idx - 1].focus();
             } else if (e.key === 'ArrowRight') {
-                if (active.parentElement.id === 'top-nav') focusable[idx + 1]?.focus();
+                if (active.parentElement?.id === 'top-nav') focusable[idx + 1]?.focus();
                 else if (active.id === 'player-container') document.getElementById('search').focus();
             } else if (e.key === 'ArrowLeft') {
-                if (active.parentElement.id === 'top-nav') focusable[idx - 1]?.focus();
+                if (active.parentElement?.id === 'top-nav') focusable[idx - 1]?.focus();
                 else document.getElementById('player-container').focus();
             }
-            e.preventDefault();
+            if (!isSearch) e.preventDefault();
         }
     });
 
-    function shuffle() { loadChannel(Math.floor(Math.random() * db.length)); }
+    function shuffle() { 
+        loadChannel(Math.floor(Math.random() * db.length), true); 
+    }
+    
     function toggleMenu() { document.body.classList.toggle('menu-open'); }
+    
     function openSync() {
         const qrBox = document.getElementById('qr-box');
         qrBox.innerHTML = "";
         new QRCode(qrBox, { text: "https://humblekidd.github.io/HumbleTVAPP/", width: 160, height: 160 });
         document.getElementById('sync-modal').style.display = 'flex';
     }
+    
     function closeModals() { document.getElementById('sync-modal').style.display = 'none'; }
+    
     function filterChannels() {
         const q = document.getElementById('search').value.toLowerCase();
-        renderList();
         document.querySelectorAll('.ch-card').forEach(card => {
             const name = card.querySelector('.ch-name').innerText.toLowerCase();
             card.style.display = name.includes(q) ? 'flex' : 'none';
